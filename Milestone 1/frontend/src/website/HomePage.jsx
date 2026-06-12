@@ -87,7 +87,7 @@ const handleUpload = async () => {
 
  {/* jic I forget margin, rounded corner, borders and white bg */}
 
-          <div className=" flex flex-col items-center">
+          <div className=" items-center">
             <section className="mb-6 rounded-3xl border bg-white p-6 shadow-sm">
               <h2 className="text-lg font-bold">Upload PDF</h2>
               <div className="mt-6 flex rounded-3xl border-2 border-dashed p-6 flex-col items-center">
