@@ -72,12 +72,12 @@ const handleUpload = async () => {
     <div className="min-h-screen bg-gray-50">
       <Navbar session={session} onSignOut={handleSignOut} />
 
-      <main className="mx-auto max-w-7xl p-6">
+      <main className="p-6">
         {signOutError ? (
           <p className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">{signOutError}</p>
         ) : null}
 
-        <div className="gap-6 lg:flex">
+        <div className="gap-6 lg:flex ">
           <aside className="mb-6 rounded-3xl border bg-white p-6 shadow-sm lg:mb-0 lg:w-64">
             <h2 className="text-lg font-bold">History</h2>
             <div className="mt-6 flex h-32 items-center justify-center rounded-2xl border">
@@ -87,7 +87,7 @@ const handleUpload = async () => {
 
  {/* jic I forget margin, rounded corner, borders and white bg */}
 
-          <div className=" items-center">
+          <div className = "flex-1">
             <section className="mb-6 rounded-3xl border bg-white p-6 shadow-sm">
               <h2 className="text-lg font-bold">Upload PDF</h2>
               <div className="mt-6 flex rounded-3xl border-2 border-dashed p-6 flex-col items-center">
