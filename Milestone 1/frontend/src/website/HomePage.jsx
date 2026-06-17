@@ -69,7 +69,7 @@ const handleUpload = async () => {
     setUploading(false);
     return;
   }
-  /* bro this part calls for supabase fn */
+  /* bro this part is supabase fn, test on inspect console */
   console.log("Calling process-pdf with:", insertedDocument.id);
 
   const { data: functionData, error: functionError } = await supabase.functions.invoke("process-pdf", {
