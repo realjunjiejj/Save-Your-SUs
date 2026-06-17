@@ -25,6 +25,11 @@ export default function HomePage({ session }) {
 const handleUpload = async () => {
 
 
+  if (!selectedFile) {
+    setUploadMessage("Please choose a PDF first.");
+    return;
+  }
+
   if (selectedFile.type !== "application/pdf") {
     setUploadMessage("Only PDF files are allowed.");
     return;
@@ -41,27 +46,50 @@ const handleUpload = async () => {
     .upload(filePath, selectedFile);
 
   if (uploadError) {
+    console.error("Upload error:", uploadError);
     setUploadMessage("Upload failed.");
     setUploading(false);
     return;
   }
 
-  const { error: databaseError } = await supabase
+  const {data: insertedDocument, error: databaseError} = await supabase
     .from("documents")
     .insert({
       user_id: userId,
       filename: selectedFile.name,
       file_path: filePath,
       file_size: selectedFile.size,
-    });
+
+    })
+    .select()
+    .single();
 
   if (databaseError) {
     setUploadMessage("File failed to save, please try again.");
     setUploading(false);
     return;
   }
+  /* bro this part calls for supabase fn */
+  console.log("Calling process-pdf with:", insertedDocument.id);
 
-  setUploadMessage("PDF uploaded successfully.");
+  const { data: functionData, error: functionError } = await supabase.functions.invoke("process-pdf", {
+    body: {
+      document_id: insertedDocument.id,
+    },
+  });
+
+  console.log("Function response:", functionData);
+
+  if (functionError) {
+    console.error("Function error:", functionError);
+    setUploadMessage("PDF uploaded, but processing failed to start.");
+    setUploading(false);
+    return;
+  }
+
+  console.log("Inserted document id:", insertedDocument.id);
+
+  setUploadMessage("PDF uploaded. Processing started.");
   setSelectedFile(null);
   setUploading(false);
 };
