@@ -1,9 +1,5 @@
-
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "@supabase/server";
-
-console.log("Hello from Functions!");
-
 
 export default {
   fetch: withSupabase({ auth: ["publishable", "secret"] }, async (req, ctx) => {
@@ -45,6 +41,23 @@ export default {
         { status: 500 },
       );
     }
+
+  const { error: statusError } = await ctx.supabaseAdmin
+  .from("documents")
+  .update({
+    processing_status: "extracting",
+    processing_error: null,
+  })
+  .eq("id", document_id);
+
+  if (statusError) {
+    console.error("Status update error:", statusError);
+
+  return Response.json(
+    { error: "Could not update document status" },
+    { status: 500 },
+  );
+}
 
     return Response.json({
       ok: true,
