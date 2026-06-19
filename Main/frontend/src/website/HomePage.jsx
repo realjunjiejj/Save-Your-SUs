@@ -9,6 +9,10 @@ export default function HomePage({ session }) {
   const [uploading, setUploading] = useState(false); {/*check if upload is happening */}
   const [uploadMessage, setUploadMessage] = useState("");  {/* stores messages */}
 
+  const [processedDocumentId, setProcessedDocumentId] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryMessage, setSummaryMessage] = useState("");
+  const [summaryData, setSummaryData] = useState(null);
 
 
   const handleSignOut = async () => {
@@ -20,8 +24,35 @@ export default function HomePage({ session }) {
     }
   };
 
-{/* This fn handles pdf upload */}
+const handleGenerateSummary = async () => {
+  if (!processedDocumentId) {
+    setSummaryMessage("Please upload and process a PDF first.");
+    return;
+  }
 
+  setSummaryLoading(true);
+  setSummaryMessage("");
+  setSummaryData(null);
+
+  const { data, error } = await supabase.functions.invoke("generate-summary", {
+    body: {
+      document_id: processedDocumentId,
+    },
+  });
+
+  if (error) {
+    console.error("Summary error:", error);
+    setSummaryMessage("Could not generate summary.");
+    setSummaryLoading(false);
+    return;
+  }
+
+  setSummaryData(data.summary);
+  setSummaryMessage("Summary generated.");
+  setSummaryLoading(false);
+};
+
+{/* This fn handles pdf upload */}
 const handleUpload = async () => {
 
 
@@ -89,11 +120,11 @@ const handleUpload = async () => {
 
   console.log("Inserted document id:", insertedDocument.id);
 
-  setUploadMessage("PDF uploaded. Processing started.");
+  setProcessedDocumentId(insertedDocument.id);
+  setUploadMessage("Upload successful. You can generate a summary now!")
   setSelectedFile(null);
   setUploading(false);
 };
-
 
 
   return (
@@ -136,14 +167,47 @@ const handleUpload = async () => {
             {uploadMessage ? (
             <p className="mt-4 font-bold text-gray-700">{uploadMessage}</p>) : null}
           </div>
-            </section>            
+            </section> 
+            
+          <section className="rounded-3xl border bg-white p-6 shadow-sm">
+           <h2 className="text-lg font-bold">Generate Summary Sheet</h2>
 
-            <section className="rounded-3xl border bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-bold">Generate Flow Chart / Summary Sheet</h2>
-              <div className="mt-6 flex h-32 items-center justify-center rounded-3xl border">
-                <p className="text-xl font-bold text-red-600">Coming soon</p>
+          <button
+            type="button"
+            onClick={handleGenerateSummary}
+            disabled={summaryLoading || !processedDocumentId}
+            className="mt-4 rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700 disabled:bg-gray-300"
+          >
+            {summaryLoading ? "Generating summary..." : "Generate Summary"}
+          </button>
+
+          {summaryMessage ? (
+            <p className="mt-4 font-bold text-gray-700">{summaryMessage}</p>
+          ) : null}
+
+          {summaryData ? (
+            <div className="mt-6 rounded-2xl border p-4">
+              <h3 className="text-xl font-bold">{summaryData.title}</h3>
+
+              <div className="mt-4 space-y-4">
+                {summaryData.sections.map(function (section, index) {
+                  return (
+                    <div key={index}>
+                      <h4 className="font-bold text-indigo-700">{section.heading}</h4>
+                      <ul className="mt-2 list-disc pl-6 text-gray-700">
+                        {section.bullet_points.map(function (point, pointIndex) {
+                          return <li key={pointIndex}>{point}</li>;
+                        })}
+                      </ul>
+                    </div>
+                  );
+                })}
               </div>
-            </section>
+            </div>
+          ) : null}
+        </section>
+
+
           </div>
         </div>
       </main>
