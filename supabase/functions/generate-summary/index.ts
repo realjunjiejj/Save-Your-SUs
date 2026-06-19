@@ -86,7 +86,7 @@ ${document.extracted_text}
   };
 
   const aiRequestBody = {
-    model: "gpt-5.5",
+    model: Deno.env.get("OPENAI_MODEL"),
     input: [
       {
         role: "system",
@@ -106,8 +106,8 @@ ${document.extracted_text}
       },
     },
   };
-
-  const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
+  const openaiBaseUrl = Deno.env.get("OPENAI_BASE_URL");
+  const openaiResponse = await fetch(`${openaiBaseUrl}/v1/responses`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
@@ -116,9 +116,25 @@ ${document.extracted_text}
     body: JSON.stringify(aiRequestBody),
   });
 
-  const openaiData = await openaiResponse.json();
+  const openaiResponseText = await openaiResponse.text();
+
   console.log("OpenAI status:", openaiResponse.status);
-  console.log("OpenAI data:", JSON.stringify(openaiData));
+  console.log("OpenAI response:", openaiResponseText.slice(0, 500));
+
+  let openaiData;
+
+  try {
+    openaiData = JSON.parse(openaiResponseText);
+  } catch {
+    return Response.json(
+      {
+        error: "OpenAI returned a non-JSON response",
+        openai_status: openaiResponse.status,
+        preview: openaiResponseText.slice(0, 500),
+      },
+      { status: 500, headers: corsHeaders },
+    );
+  }
 
   if (!openaiResponse.ok) {
     const errorMessage = openaiData.error?.message ?? "OpenAI request failed.";
