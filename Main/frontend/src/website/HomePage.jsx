@@ -1,6 +1,35 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react"; 
+{/*importing react tools, effect runs code after screen updates, 
+Ref allows direct html references*/}
+import mermaid from "mermaid"; 
 import { supabase } from "../supabaseClient";
 import Navbar from "./Navbar";
+
+mermaid.initialize({
+  startOnLoad: false, /*does not automatically scan whole page */
+  securityLevel: "strict",
+  theme: "default",
+}); /*mindmap styling */
+
+function MermaidMindmap({ code }) {
+  const containerRef = useRef(null); /*creates ref to div element to slot pic */
+
+  useEffect(() => {
+    const renderMindmap = async () => {
+      if (!code || !containerRef.current) {  /*if no code or div ele, stop */
+        return;
+      }
+
+      const renderId = `mindmap-${Date.now()}`;
+      const { svg } = await mermaid.render(renderId, code); /* mermaid text to svg */
+      containerRef.current.innerHTML = svg;
+    };
+
+    renderMindmap(); //run the fn
+  }, [code]);
+
+  return <div ref={containerRef} className="min-h-64 overflow-auto" />;
+}
 
 export default function HomePage({ session }) {
   const [signOutError, setSignOutError] = useState("");
@@ -9,12 +38,15 @@ export default function HomePage({ session }) {
   const [uploading, setUploading] = useState(false); {/*check if upload is happening */}
   const [uploadMessage, setUploadMessage] = useState("");  {/* stores messages */}
 
-  const [processedDocumentId, setProcessedDocumentId] = useState("");
-  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [processedDocumentId, setProcessedDocumentId] = useState(""); //store supabase id of doc
+  const [summaryLoading, setSummaryLoading] = useState(false); //check if generating
   const [summaryMessage, setSummaryMessage] = useState("");
-  const [summaryData, setSummaryData] = useState(null);
+  const [summaryData, setSummaryData] = useState(null); //stores actual summary
+  const [mindmapLoading, setMindmapLoading] = useState(false);
+  const [mindmapMessage, setMindmapMessage] = useState("");
+  const [mindmapData, setMindmapData] = useState(null);
 
-
+//clear sign out error --> ask Supabase to sign out --> if got error, save it
   const handleSignOut = async () => {
     setSignOutError("");
     const { error } = await supabase.auth.signOut({ scope: "local" });
@@ -30,7 +62,7 @@ const handleGenerateSummary = async () => {
     return;
   }
 
-  setSummaryLoading(true);
+  setSummaryLoading(true); //changing status
   setSummaryMessage("");
   setSummaryData(null);
 
@@ -38,7 +70,7 @@ const handleGenerateSummary = async () => {
     body: {
       document_id: processedDocumentId,
     },
-  });
+  }); //calling supabase edge fn --> sends doc_id: processedDocID to backend
 
   if (error) {
     console.error("Summary error:", error);
@@ -47,9 +79,38 @@ const handleGenerateSummary = async () => {
     return;
   }
 
-  setSummaryData(data.summary);
+  setSummaryData(data.summary); //if successful
   setSummaryMessage("Summary generated.");
   setSummaryLoading(false);
+};
+
+
+const handleGenerateMindmap = async () => {
+  if (!processedDocumentId) {
+    setMindmapMessage("Please upload and process a PDF first.");
+    return;
+  }
+
+  setMindmapLoading(true);
+  setMindmapMessage("");
+  setMindmapData(null);
+
+  const { data, error } = await supabase.functions.invoke("generate-mindmap", {
+    body: {
+      document_id: processedDocumentId,
+    },
+  });
+
+  if (error) {
+    console.error("Mindmap error:", error);
+    setMindmapMessage("Could not generate mindmap.");
+    setMindmapLoading(false);
+    return;
+  }
+
+  setMindmapData(data);
+  setMindmapMessage("Mindmap generated.");
+  setMindmapLoading(false);
 };
 
 {/* This fn handles pdf upload */}
@@ -71,10 +132,10 @@ const handleUpload = async () => {
 
   const userId = session.user.id;
   const filePath = `${userId}/${Date.now()}-${selectedFile.name}`;
-
+  //gets user ID and creates a storage path
   const { error: uploadError } = await supabase.storage
     .from("pdfs")
-    .upload(filePath, selectedFile);
+    .upload(filePath, selectedFile); //uploads the file to Supabase storage 
 
   if (uploadError) {
     console.error("Upload error:", uploadError);
@@ -82,7 +143,7 @@ const handleUpload = async () => {
     setUploading(false);
     return;
   }
-
+    //adds row to documents tab in supabase
   const {data: insertedDocument, error: databaseError} = await supabase
     .from("documents")
     .insert({
@@ -129,18 +190,18 @@ const handleUpload = async () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar session={session} onSignOut={handleSignOut} />
+      <Navbar session={session} onSignOut={handleSignOut}/>  
 
       <main className="p-6">
         {signOutError ? (
           <p className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">{signOutError}</p>
-        ) : null}
-
+        ) : null}  
+        {/* sign out error display */}
         <div className="gap-6 lg:flex ">
           <aside className="mb-6 rounded-3xl border bg-white p-6 shadow-sm lg:mb-0 lg:w-64">
             <h2 className="text-lg font-bold">History</h2>
             <div className="mt-6 flex h-32 items-center justify-center rounded-2xl border">
-              <p className="text-lg font-bold text-red-600">Coming soon</p>
+              <p className="text-lg font-bold text-red-600">Coming soon in MS3!</p>
             </div>
           </aside>
 
@@ -152,7 +213,7 @@ const handleUpload = async () => {
               <div className="mt-6 flex rounded-3xl border-2 border-dashed p-6 flex-col items-center">
              <label className="cursor-pointer rounded-xl border bg-white px-4 py-2 font-bold text-gray-700 hover:bg-gray-100">
               Choose PDF <input type="file" accept="application/pdf" onChange={(event) => setSelectedFile(event.target.files[0])} className="hidden"/>
-              </label>{/* tells react to select the right file */}
+              </label>{/* tells react to select the right file --> saves into selectedFile */}
           
           {selectedFile ? ( <p className="mt-3 text-sm font-bold text-gray-700">{selectedFile.name}</p>) :
            (<p className="mt-3 text-sm text-gray-500">No file chosen</p>
@@ -162,7 +223,8 @@ const handleUpload = async () => {
                onClick={handleUpload}  disabled={uploading}
               className="mt-4 block rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700">
               {uploading ? "Uploading wait ah..." : "Click here to upload!"}
-              </button>
+              </button> 
+              {/* runs handleUpload */}
 
             {uploadMessage ? (
             <p className="mt-4 font-bold text-gray-700">{uploadMessage}</p>) : null}
@@ -177,7 +239,7 @@ const handleUpload = async () => {
             onClick={handleGenerateSummary}
             disabled={summaryLoading || !processedDocumentId}
             className="mt-4 rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700 disabled:bg-gray-300"
-          >
+          > {/* button is disabled if summary is loading/ no pdf is processed yet */}
             {summaryLoading ? "Generating summary..." : "Generate Summary"}
           </button>
 
@@ -185,6 +247,7 @@ const handleUpload = async () => {
             <p className="mt-4 font-bold text-gray-700">{summaryMessage}</p>
           ) : null}
 
+          {/*styling of summary sheet*/}
           {summaryData ? (
             <div className="mt-6 rounded-2xl border p-4">
               <h3 className="text-xl font-bold">{summaryData.title}</h3>
@@ -207,6 +270,32 @@ const handleUpload = async () => {
           ) : null}
         </section>
 
+        <section className="mt-6 rounded-3xl border bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-bold">Generate Mindmap</h2>
+
+          <button
+            type="button"
+            onClick={handleGenerateMindmap}
+            disabled={mindmapLoading || !processedDocumentId}
+            className="mt-4 rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700 disabled:bg-gray-300"
+          >
+            {mindmapLoading ? "Generating mindmap..." : "Generate Mindmap"}
+          </button>
+
+          {mindmapMessage ? (
+            <p className="mt-4 font-bold text-gray-700">{mindmapMessage}</p>
+          ) : null}
+
+          {mindmapData ? (
+            <div className="mt-6 rounded-2xl border p-4">
+              <h3 className="text-xl font-bold">{mindmapData.title}</h3>
+              <div className="mt-4 overflow-auto rounded-2xl border bg-gray-50 p-4">
+                <MermaidMindmap code={mindmapData.mermaid_code} /> {/* take mermaid source 
+                code from mindmapData --> send to MermaidMindMap and let it render code as a diagram*/}
+              </div>
+            </div>
+          ) : null}
+        </section>
 
           </div>
         </div>

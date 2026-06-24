@@ -1,11 +1,11 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts"; //let deno and TS run edge fns
+import { createClient } from "jsr:@supabase/supabase-js@2"; 
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+}; //gives the frontend permission to call fn, blocks cors error
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -13,12 +13,12 @@ Deno.serve(async (req) => {
       status: 204,
       headers: corsHeaders,
     });
-  }
+  } //browser sends OPTION request
 
   const supabaseAdmin = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  ); //allows fn to read and update supabase table
 
   const body = await req.json();
   const document_id = body.document_id;
@@ -27,8 +27,8 @@ Deno.serve(async (req) => {
     .from("documents")
     .select("id, filename, extracted_text")
     .eq("id", document_id)
-    .single();
-
+    .single(); //searches documents table for matching row 
+ 
   if (!document || !document.extracted_text) {
     return Response.json(
       { error: "No extracted text found for this document" },
@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
   await supabaseAdmin
     .from("documents")
     .update({
-      processing_status: "generating",
+      processing_status: "generating", //updates Supabase to show doc is generating
       processing_error: null,
     })
     .eq("id", document_id);
@@ -83,9 +83,9 @@ ${document.extracted_text}
       },
     },
     required: ["title", "sections"],
-  };
+  }; //format of summary sheet
 
-  const aiRequestBody = {
+  const aiRequestBody = { 
     model: Deno.env.get("OPENAI_MODEL"),
     input: [
       {
@@ -105,7 +105,7 @@ ${document.extracted_text}
         schema: summarySchema,
       },
     },
-  };
+  }; //prepares the request sent to openAI
   const openaiBaseUrl = Deno.env.get("OPENAI_BASE_URL");
   const openaiResponse = await fetch(`${openaiBaseUrl}/v1/responses`, {
     method: "POST",
@@ -116,7 +116,7 @@ ${document.extracted_text}
     body: JSON.stringify(aiRequestBody),
   });
 
-  const openaiResponseText = await openaiResponse.text();
+  const openaiResponseText = await openaiResponse.text(); //reads AI response as raw text first
 
   console.log("OpenAI status:", openaiResponse.status);
   console.log("OpenAI response:", openaiResponseText.slice(0, 500));
@@ -124,7 +124,7 @@ ${document.extracted_text}
   let openaiData;
 
   try {
-    openaiData = JSON.parse(openaiResponseText);
+    openaiData = JSON.parse(openaiResponseText); //concerts AI response to JS object
   } catch {
     return Response.json(
       {
@@ -137,7 +137,7 @@ ${document.extracted_text}
   }
 
   if (!openaiResponse.ok) {
-    const errorMessage = openaiData.error?.message ?? "OpenAI request failed.";
+    const errorMessage = openaiData.error?.message ?? "OpenAI request failed."; 
 
     await supabaseAdmin
       .from("documents")
@@ -154,7 +154,7 @@ ${document.extracted_text}
       },
       { status: 500, headers: corsHeaders },
     );
-  }
+  } //saves error into Supabase
 
   const summaryText =
     openaiData.output_text ??
@@ -164,7 +164,7 @@ ${document.extracted_text}
       })
       .find(function (contentItem) {
         return contentItem.type === "output_text";
-      })?.text;
+      })?.text; //finding the generated summary text
 
   if (!summaryText) {
   await supabaseAdmin
@@ -185,7 +185,7 @@ ${document.extracted_text}
   );
 }
 
-const summaryJson = JSON.parse(summaryText);
+const summaryJson = JSON.parse(summaryText); //converts JSON string into JS object
 
   await supabaseAdmin
     .from("documents")
@@ -195,7 +195,7 @@ const summaryJson = JSON.parse(summaryText);
       processing_error: null,
       generated_at: new Date().toISOString(),
     })
-    .eq("id", document_id);
+    .eq("id", document_id); //saves summary into documents table and marked completed
 
   return Response.json(
     {
@@ -205,5 +205,5 @@ const summaryJson = JSON.parse(summaryText);
       summary: summaryJson,
     },
     { headers: corsHeaders },
-  );
+  ); //sends summary back to frontend
 });
