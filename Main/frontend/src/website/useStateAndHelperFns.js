@@ -12,6 +12,34 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function highlightKeywordsForPrint(text, keywords = []) { //fn receives one bullet point and words to highlight
+  const safeKeywords = keywords.filter(Boolean).map(escapeRegExp); //removes empty keywords
+
+  if (safeKeywords.length === 0) {
+    return escapeHtml(text);
+  }
+
+  const parts = String(text).split(new RegExp(`(${safeKeywords.join("|")})`, "gi")); //splits into keywords and normal text
+
+  return parts
+    .map(function (part) {
+      const isKeyword = keywords.some(function (keyword) {
+        return part.toLowerCase() === String(keyword).toLowerCase();
+      });  //check whether current part is one keywords, return T/F
+
+      if (isKeyword) {
+        return `<mark>${escapeHtml(part)}</mark>`;
+      }
+
+      return escapeHtml(part);
+    })
+    .join("");
+}
+
 // Opens a new tab, allows user to print the window
 function openPrintWindow(title, bodyHtml) {
   const printWindow = window.open("", "_blank");
@@ -45,15 +73,22 @@ function openPrintWindow(title, bodyHtml) {
             margin-bottom: 8px;
           }
 
+          mark {
+            background: yellow; 
+            font-weight: 700;
+            padding: 0 2px;
+            -webkit-print-color-adjust: exact; 
+            print-color-adjust: exact;
+          }
           svg {
             height: auto;
             max-width: 100%;
           }
-        </style>
+        </style> 
       </head>
       <body>${bodyHtml}</body>
     </html>
-  `);
+  `); 
 
   printWindow.document.close();
   printWindow.focus();
@@ -316,7 +351,7 @@ export function useStateAndHelperFns(session) {
       .map(function (section) {
         const bulletPointsHtml = (section.bullet_points ?? [])
           .map(function (point) {
-            return `<li>${escapeHtml(point)}</li>`;
+            return `<li>${highlightKeywordsForPrint(point, section.keywords)}</li>`;
           })
           .join("");
 

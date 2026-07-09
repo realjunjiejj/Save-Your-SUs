@@ -50,6 +50,9 @@ Break the document into logical sections, with key concepts shown under each hea
 Under each section, write concise bullet points.
 For notes pertaining to STEM subjects, focus on showing important formulas and include an example question of how the formula can be applied.
 This example question must be found inside the document. Do not include an example question for that concept if the document does not have one.
+For each section, return a few important keywords or phrases that would then be highlighted in the actual summary.
+All of these keywords have to be included in the bullet points.
+If the keyword is an abbreviation and if it is found inside a word that has another meaning, do not select the abbreviaiton as a keyword. 
 Do not include any facts that are not found in the document.
 `;
 
@@ -77,8 +80,12 @@ ${document.extracted_text}
               type: "array",
               items: { type: "string" },
             },
+            keywords: { 
+              type: "array",
+              items: {type: "string"},
+            }
           },
-          required: ["heading", "bullet_points"],
+          required: ["heading", "bullet_points", "keywords"],
         },
       },
     },

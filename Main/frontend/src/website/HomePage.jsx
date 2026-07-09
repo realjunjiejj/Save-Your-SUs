@@ -33,6 +33,37 @@ function MermaidMindmap({ code }) {
   return <div ref={containerRef} className="min-h-64 overflow-auto" />;
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+//highlight word helper fn 
+function highlightKeywords(text, keywords = []) {
+  const safeKeywords = keywords.filter(Boolean).map(escapeRegExp);
+
+  if (safeKeywords.length === 0) {
+    return text;
+  }
+
+  const parts = text.split(new RegExp(`(${safeKeywords.join("|")})`, "gi")); //"gi" means global and case insensitive
+
+  return parts.map(function (part, index) {
+    const isKeyword = keywords.some(function (keyword) {
+      return part.toLowerCase() === keyword.toLowerCase();
+    });
+
+    if (isKeyword) {
+      return (
+        <span key={index} className=" bg-yellow-300 font-bold">
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
+
 export default function HomePage({ session }) {
   // Pulls all states and functions from the custom hook
   const {
@@ -179,7 +210,10 @@ export default function HomePage({ session }) {
                               point,
                               pointIndex,
                             ) {
-                              return <li key={pointIndex}>{point}</li>;
+                              return(
+                                  <li key={pointIndex}>
+                                    {highlightKeywords(point, section.keywords)}
+                                      </li>);; // helper fn will return bullet point with keywords highlighted 
                             })}
                           </ul>
                         </div>
