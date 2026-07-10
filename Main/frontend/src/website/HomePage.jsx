@@ -195,7 +195,7 @@ export default function HomePage({ session }) {
               ) : null}
 
               {summaryData ? (
-                <div className="mt-6 rounded-2xl border p-4">
+                <div className="mt-6 h-[700px] overflow-y-auto rounded-2xl border p-4">
                   <h3 className="text-xl font-bold">{summaryData.title}</h3>
 
                   <div className="mt-4 space-y-4">
@@ -255,9 +255,11 @@ export default function HomePage({ session }) {
               {mindmapData ? (
                 <div className="mt-6 rounded-2xl border p-4">
                   <h3 className="text-xl font-bold">{mindmapData.title}</h3>
-                  <div className="mt-4 overflow-auto rounded-2xl border bg-gray-50 p-4">
+                  <div className="mt-4 h -[650px] overflow-auto rounded-2xl border bg-gray-50 p-4">
+                    <div classname = "min-w-[1200px]">
                     {/* Sends Mermaid source code into MermaidMindmap to render the diagram*/}
-                    <MermaidMindmap code={mindmapData.mermaid_code} />
+                    <MermaidMindmap code={mindmapData.mermaid_code}/>
+                    </div>
                   </div>
                 </div>
               ) : null}

@@ -153,13 +153,16 @@ Deno.serve(async (req) => {
         role: "system",
         content: `Create a concise study mindmap  using only facts found in the source document.
 Return valid Mermaid mindmap syntax in mermaid_code.
-Use two spaces for each indentation level.
-Use one root, at most six main branches, and at most three levels below the root.
+Distribute child nodes evenly across all main branches.
+Avoid placing more than 3 child nodes under any one branch.
+Branches must be placed far apart such that no branch or child node overlaps. 
+Distribute details across multiple parent categories instead of clustering them around the centre.
+Use one root, at most 5 main branches, and at most three levels below the root.
 Start with a generic content heading, subsequent points can be more detailed. Provide evidence, 
 mathematical proof or support to back the general points posited by the upper headings, only do this
 if the evidence can be found withint the document. 
-For the more detailed points, ensure they are in coherent sentences.
-Avoid HTML, links, click directives, config directives, markdown fences, and semicolons.`,
+For the more detailed child nodes, ensure they are written in a coherent sentence.
+Avoid HTML, links, click directives, config directives, markdown fences, and semicolons. `,
       },
       {
         role: "user",
