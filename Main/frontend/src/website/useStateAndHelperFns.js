@@ -73,6 +73,11 @@ function openPrintWindow(title, bodyHtml) {
             margin-bottom: 8px;
           }
 
+          .quiz-options {
+            list-style: none;
+            padding-left: 0;
+          }
+
           mark {
             background: yellow; 
             font-weight: 700;
@@ -121,12 +126,17 @@ export function useStateAndHelperFns(session) {
   const [documents, setDocuments] = useState([]);
   const [selectedDocument, setSelectedDocument] = useState(null);
 
+  //quiz feature
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizMessage, setQuizMessage] = useState("");
+  const [quizData, setQuizData] = useState(null);
+
 // useEffect --> only run fn again if session.user.id changes
   useEffect(() => {
     const fetchDocuments = async () => {
       const { data, error } = await supabase
         .from("documents")
-        .select("id, filename, summary_json, mermaid_code, created_at")
+        .select("id, filename, summary_json, mermaid_code, quiz_json, created_at")
         .eq("user_id", session.user.id)
         .order("created_at", { ascending: false });
 
@@ -233,6 +243,47 @@ export function useStateAndHelperFns(session) {
     });
     setMindmapMessage("Mindmap generated.");
     setMindmapLoading(false);
+  };
+
+  // Sends doc-id to generate-quiz fn
+  const handleGenerateQuiz = async () => {
+    if (!processedDocumentId) {
+      setQuizMessage("Please upload and process a PDF first.");
+      return;
+    }
+
+    setQuizLoading(true); // Changes the button text/loading state
+    setQuizMessage("");
+    setQuizData(null);
+
+    const { data, error } = await supabase.functions.invoke("generate-quiz", {
+      body: {
+        document_id: processedDocumentId,
+      },
+    });
+
+    if (error) {
+      console.error("Quiz error:", error);
+      setQuizMessage("Could not generate quiz.");
+      setQuizLoading(false);
+      return;
+    }
+
+    setQuizData(data.quiz);
+    setDocuments(function (currentDocuments) {
+      return currentDocuments.map(function (document) {
+        if (document.id === processedDocumentId) {
+          return {
+            ...document,
+            quiz_json: data.quiz,
+          };
+        }
+
+        return document;
+      });
+    });
+    setQuizMessage("Quiz generated.");
+    setQuizLoading(false);
   };
 
   // choose PDF -> upload to Storage -> insert database row -> extract PDF text
@@ -384,6 +435,40 @@ export function useStateAndHelperFns(session) {
     );
   };
 
+  const handleViewQuizPdf = () => {
+  if (!quizData) {
+    return;
+  }
+
+  const questionsHtml = quizData.questions
+    .map(function (question, index) {
+      const optionsHtml = question.options
+        .map(function (option, optionIndex) {
+          const letter = ["A", "B", "C", "D"][optionIndex];
+          const optionText = String(option).replace(/^[A-D][.)]\s*/i, "");
+
+          return `<li>${letter}. ${escapeHtml(optionText)}</li>`;
+        }) //escape html prevents string from being treated as literal HTML code
+        .join("");
+
+      return `
+        <section>
+          <h2>Question ${index + 1}</h2>
+          <p>${escapeHtml(question.question)}</p>
+          <ul class="quiz-options">${optionsHtml}</ul>
+          <p><strong>Answer:</strong> ${escapeHtml(question.correct_option ?? question.answer)}</p>
+          <p><strong>Explanation:</strong> ${escapeHtml(question.explanation)}</p>
+        </section>
+      `;
+    })
+    .join("");
+
+  openPrintWindow(
+    quizData.quiz_title,
+    `<h1>${escapeHtml(quizData.quiz_title)}</h1>${questionsHtml}`,
+  );
+};
+
   return {
     signOutError,
     selectedFile,
@@ -399,6 +484,11 @@ export function useStateAndHelperFns(session) {
     mindmapData,
     documents,
     selectedDocument,
+    quizLoading,
+    quizMessage,
+    quizData,
+    handleGenerateQuiz,
+    handleViewQuizPdf,
     handleSignOut,
     handleGenerateSummary,
     handleGenerateMindmap,

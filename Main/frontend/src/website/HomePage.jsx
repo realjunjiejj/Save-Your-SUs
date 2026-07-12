@@ -80,6 +80,9 @@ export default function HomePage({ session }) {
     mindmapMessage,
     mindmapData,
     documents,
+    quizLoading,
+    quizMessage,
+    quizData,
     handleSignOut,
     handleGenerateSummary,
     handleGenerateMindmap,
@@ -87,10 +90,12 @@ export default function HomePage({ session }) {
     handleSelectDocument,
     handleViewSummaryPdf,
     handleViewMindmapPdf,
+    handleGenerateQuiz,
+    handleViewQuizPdf,
   } = useStateAndHelperFns(session);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen overflow-x-hidden bg-gray-50">
       <Navbar session={session} onSignOut={handleSignOut} />
 
       <main className="p-6">
@@ -100,9 +105,9 @@ export default function HomePage({ session }) {
           </p>
         ) : null}
 
-        <div className="gap-6 lg:flex">
+        <div className="max-w-full gap-6 overflow-x-hidden lg:flex">
           {/* History sidebar */}
-          <aside className="mb-6 rounded-3xl border bg-white p-6 shadow-sm lg:mb-0 lg:w-64">
+          <aside className="mb-6 rounded-3xl border bg-white p-6 shadow-sm lg:mb-0 lg:w-64 lg:shrink-0">
             <h2 className="text-lg font-bold">History</h2>
 
             <div className="mt-6 max-h-80 space-y-2 overflow-y-auto">
@@ -126,7 +131,7 @@ export default function HomePage({ session }) {
             </div>
           </aside>
 
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             {/* Upload PDF section */}
             <section className="mb-6 rounded-3xl border bg-white p-6 shadow-sm">
               <h2 className="text-lg font-bold">Upload PDF</h2>
@@ -177,7 +182,7 @@ export default function HomePage({ session }) {
                   disabled={summaryLoading || !processedDocumentId}
                   className="rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700 disabled:bg-gray-300"
                 >
-                  {summaryLoading ? "Generating summary..." : "Generate Summary"}
+                  {summaryLoading ? "Generating wait ah..." : "Generate Summary"}
                 </button>
 
                 <button
@@ -235,7 +240,7 @@ export default function HomePage({ session }) {
                   disabled={mindmapLoading || !processedDocumentId}
                   className="rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700 disabled:bg-gray-300"
                 >
-                  {mindmapLoading ? "Generating mindmap..." : "Generate Mindmap"}
+                  {mindmapLoading ? "Generating wait ah..." : "Generate Mindmap"}
                 </button>
 
                 <button
@@ -255,13 +260,41 @@ export default function HomePage({ session }) {
               {mindmapData ? (
                 <div className="mt-6 rounded-2xl border p-4">
                   <h3 className="text-xl font-bold">{mindmapData.title}</h3>
-                  <div className="mt-4 h -[650px] overflow-auto rounded-2xl border bg-gray-50 p-4">
-                    <div classname = "min-w-[1200px]">
+                  <div className="mt-4 h-[650px] overflow-auto rounded-2xl border bg-gray-50 p-4">
+                    <div className="min-w-[1200px]">
                     {/* Sends Mermaid source code into MermaidMindmap to render the diagram*/}
                     <MermaidMindmap code={mindmapData.mermaid_code}/>
                     </div>
                   </div>
                 </div>
+              ) : null}
+            </section>
+
+            <section className="mt-6 rounded-3xl border bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-bold">Generate Quiz</h2>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={handleGenerateQuiz}
+                  disabled={quizLoading || !processedDocumentId}
+                  className="rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700 disabled:bg-gray-300"
+                >
+                  {quizLoading ? "Generating wait ah..." : "Generate Quiz"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleViewQuizPdf}
+                  disabled={!quizData}
+                  className="rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700 disabled:bg-gray-300"
+                >
+                  View as PDF
+                </button>
+              </div>
+
+              {quizMessage ? (
+                <p className="mt-4 font-bold text-gray-700">{quizMessage}</p>
               ) : null}
             </section>
           </div>
