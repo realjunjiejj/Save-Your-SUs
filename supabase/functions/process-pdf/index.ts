@@ -1,38 +1,57 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "npm:@supabase/server@^1";
-import * as pdfjsLib from "npm:pdfjs-dist@4.10.38/legacy/build/pdf.mjs";
+// Checks whether the browser extracted enough text to skip OCR.
+function hasUsefulText(text: string) {
+  const cleanedText = text.replace(/\s+/g, " ").trim();
+  return cleanedText.length >= 40 && /[A-Za-z0-9]/.test(cleanedText);
+}
 
+//send the scanned PDF to OCR.space and combines the text returned from each page
+async function extractTextWithOcr(pdfFile: Blob, filename: string) {
+  const apiKey = Deno.env.get("OCR_SPACE_API_KEY");
 
-// fn that transforms uploaded pdf into plain text 
+  if (!apiKey) {
+    throw new Error("OCR_SPACE_API_KEY is missing");
+  }
+  const formData = new FormData();
+  formData.append("file", pdfFile, filename || "document.pdf");
+  formData.append("language", "eng");
+  formData.append("filetype", "PDF");
+  formData.append("isOverlayRequired", "false");
+  formData.append("detectOrientation", "true");
+  formData.append("scale", "true");
 
-async function extractTextFromPdf(pdfFile: Blob) {   
-  const pdfBytes = new Uint8Array(await pdfFile.arrayBuffer()); //converts file into bytes
+  const response = await fetch("https://api.ocr.space/parse/image", {
+    method: "POST",
+    headers: { apikey: apiKey },
+    body: formData,
+  });
+  const result = await response.json();
 
-  const pdf = await pdfjsLib.getDocument({
-    data: pdfBytes,
-    disableWorker: true,
-  }).promise;
-
-  const pages: string[] = []; 
-
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-    const page = await pdf.getPage(pageNumber);
-    const textContent = await page.getTextContent();  //loop thru each page and extract text
-
-    const pageText = textContent.items
-      .map(function (item) {
-        if ("str" in item) {
-          return item.str;
-        }
-
-        return "";
-      })
-      .join(" ");
-
-    pages.push(pageText);
+  if (
+    !response.ok ||
+    result.IsErroredOnProcessing ||
+    !Array.isArray(result.ParsedResults)
+  ) {
+    const errorMessage =
+      typeof result.ErrorMessage === "string"
+        ? result.ErrorMessage
+        : "OCR request failed";
+    throw new Error(errorMessage);
   }
 
-  return pages.join("\n\n").trim(); //combines all text into one big string 
+  const ocrText = result.ParsedResults
+    .map((page: { ParsedText?: unknown }) =>
+      typeof page.ParsedText === "string" ? page.ParsedText.trim() : ""
+    )
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+  if (!hasUsefulText(ocrText)) {
+    throw new Error("OCR did not return useful text");
+  }
+
+  return ocrText;
 }
 
 
@@ -51,7 +70,7 @@ export default {
 
     const { data: document, error: documentError } = await ctx.supabaseAdmin
       .from("documents")
-      .select("id, user_id, filename, file_path")
+      .select("id, user_id, filename, file_path, extracted_text")
       .eq("id", document_id)
       .single();
     if (documentError || !document) {
@@ -60,19 +79,6 @@ export default {
       return Response.json(
         { error: "Document not found" },
         { status: 404 },
-      );
-    }
-
-    const { data: pdfFile, error: downloadError } = await ctx.supabaseAdmin.storage
-      .from("pdfs")
-      .download(document.file_path);
-
-    if (downloadError || !pdfFile) {
-      console.error("PDF download error:", downloadError);
-
-      return Response.json(
-        { error: "Could not download PDF" },
-        { status: 500 },
       );
     }
 
@@ -93,9 +99,79 @@ export default {
   );
 }
 
-const extractedText = await extractTextFromPdf(pdfFile);
+const existingText = document.extracted_text ?? "";
+
+if (hasUsefulText(existingText)) {
+  const { error: extractedStatusError } = await ctx.supabaseAdmin
+    .from("documents")
+    .update({
+      processing_status: "extracted",
+      processing_error: null,
+    })
+    .eq("id", document_id);
+
+  if (extractedStatusError) {
+    console.error("Extracted status update error:", extractedStatusError);
+
+    return Response.json(
+      { error: "Could not update document status" },
+      { status: 500 },
+    );
+  }
+
+  return Response.json({
+    ok: true,
+    document_id: document.id,
+    filename: document.filename,
+    file_path: document.file_path,
+    extracted_text_length: existingText.length,
+    extraction_method: "pdf_text",
+  });
+}
+
+const { data: pdfFile, error: downloadError } = await ctx.supabaseAdmin.storage
+  .from("pdfs")
+  .download(document.file_path);
+
+if (downloadError || !pdfFile) {
+  console.error("PDF download error:", downloadError);
+
+  return Response.json(
+    { error: "Could not download PDF" },
+    { status: 500 },
+  );
+}
 
 await ctx.supabaseAdmin
+  .from("documents")
+  .update({
+    processing_status: "ocr_processing",
+    processing_error: null,
+  })
+  .eq("id", document_id);
+
+let extractedText = "";
+
+try {
+  extractedText = await extractTextWithOcr(pdfFile, document.filename);
+} catch (error) {
+  console.error("OCR extraction error:", error);
+
+  await ctx.supabaseAdmin
+    .from("documents")
+    .update({
+      processing_status: "failed",
+      processing_error: "Could not extract text using OCR.",
+    })
+    .eq("id", document_id);
+
+  return Response.json(
+    { error: "Could not extract text from this PDF" },
+    { status: 422 },
+  );
+}
+
+const { error: saveError } = await ctx.supabaseAdmin
   .from("documents")
   .update({
     extracted_text: extractedText,
@@ -103,6 +179,15 @@ await ctx.supabaseAdmin
     processing_error: null,
   })
   .eq("id", document_id);
+
+if (saveError) {
+  console.error("Extracted text save error:", saveError);
+
+  return Response.json(
+    { error: "Could not save extracted text" },
+    { status: 500 },
+  );
+}
   
     return Response.json({
       ok: true,
@@ -112,6 +197,7 @@ await ctx.supabaseAdmin
       pdf_size: pdfFile.size,
       pdf_type: pdfFile.type,
       extracted_text_length: extractedText.length,
+      extraction_method: "ocr",
     });
   }),
 };

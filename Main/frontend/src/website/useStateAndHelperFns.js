@@ -1,8 +1,38 @@
 import { useEffect, useState } from "react";
 import mermaid from "mermaid";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs"; // chnaged it here coz edge fn cannot be more than 20mb
+//extracts selectable text in the browser before the file is uploaded
 import { supabase } from "../supabaseClient";
 
-// Converts special characters into safe HTML text for printing window
+// reads selectable text from the PDF in the browser before upload.
+async function extractTextFromPdf(pdfFile) {
+  const pdfBytes = new Uint8Array(await pdfFile.arrayBuffer());
+  const pdf = await pdfjsLib.getDocument({
+    data: pdfBytes,
+    disableWorker: true,
+  }).promise;
+  const pages = [];
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items
+      .map(function (item) {
+        return "str" in item ? item.str : "";
+      })
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (pageText) {
+      pages.push(pageText);
+    }
+  }
+
+  return pages.join("\n\n").trim();
+}
+
+// converts special characters into safe HTML text for printing window
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -40,7 +70,7 @@ function highlightKeywordsForPrint(text, keywords = []) { //fn receives one bull
     .join("");
 }
 
-// Opens a new tab, allows user to print the window
+// ppens a new tab, allows user to print the window
 function openPrintWindow(title, bodyHtml) {
   const printWindow = window.open("", "_blank");
 
@@ -117,7 +147,7 @@ export function useStateAndHelperFns(session) {
   const [summaryMessage, setSummaryMessage] = useState("");
   const [summaryData, setSummaryData] =  useState(null);
 
-  // Mindmap memory boxes
+  // mindmap memory boxes
   const [mindmapLoading, setMindmapLoading] = useState(false);
   const [mindmapMessage, setMindmapMessage] = useState("");
   const [mindmapData, setMindmapData] = useState(null);
@@ -167,7 +197,7 @@ export function useStateAndHelperFns(session) {
       return;
     }
 
-    setSummaryLoading(true); // Changes the button text/loading state
+    setSummaryLoading(true);
     setSummaryMessage("");
     setSummaryData(null);
 
@@ -184,9 +214,9 @@ export function useStateAndHelperFns(session) {
       return;
     }
 
-    setSummaryData(data.summary); // Shows the summary on the page
+    setSummaryData(data.summary);
 
-    // Updates the History copy of the doc too
+    // updates the History copy of the doc too
     setDocuments(function (currentDocuments) {
       return currentDocuments.map(function (document) {
         if (document.id === processedDocumentId) {
@@ -301,6 +331,14 @@ export function useStateAndHelperFns(session) {
     setUploading(true);
     setUploadMessage("");
 
+    let extractedText = "";
+
+    try {
+      extractedText = await extractTextFromPdf(selectedFile);
+    } catch (error) {
+      console.error("Browser PDF extraction error:", error);
+    }
+
     const userId = session.user.id;
     const filePath = `${userId}/${Date.now()}-${selectedFile.name}`;
 
@@ -323,6 +361,7 @@ export function useStateAndHelperFns(session) {
         filename: selectedFile.name,
         file_path: filePath,
         file_size: selectedFile.size,
+        extracted_text: extractedText || null,
       })
       .select()
       .single();
@@ -335,7 +374,7 @@ export function useStateAndHelperFns(session) {
 
     console.log("Calling process-pdf with:", insertedDocument.id);
 
-    // Calls process-pdf so backend extracts text from pdf 
+    // Calls process-pdf so the backend can use OCR when no text was found
     const { data: functionData, error: functionError } =
       await supabase.functions.invoke("process-pdf", {
         body: {
