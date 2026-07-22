@@ -48,6 +48,7 @@ Deno.serve(async (req) => {
 Please create clear study summary sheets for students.
 Break the document into logical sections, with key concepts shown under each heading.
 Under each section, write concise bullet points.
+Do not use markdown formatting and return plain text only.
 For notes pertaining to STEM subjects, focus on showing important formulas and include an example question of how the formula can be applied.
 This example question must be found inside the document. Do not include an example question for that concept if the document does not have one.
 For each section, return a few important keywords or phrases that would then be highlighted in the actual summary.
